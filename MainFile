@@ -127,9 +127,9 @@ local Errors = {
 }
 local SessionErrors = {}
 
-local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/AbstractPoo/Main/main/Library"))()
+local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/Alex-3ds/JustAFile/main/Library"))()
 local ESPLibrary = loadstring(game:HttpGet("https://raw.githubusercontent.com/NoTwistedHere/Stuff/main/ESP.lua", true))()
-local JSON = loadstring(game:HttpGet("https://raw.githubusercontent.com/NoTwistedHere/Storage/main/Other/JSONWithUserdata", true))()
+local JSON = loadstring(game:HttpGet("https://raw.githubusercontent.com/Alex-3ds/JustAFile/main/JSON", true))()
 local Window = Library:Create({
     Name = "The Wild West - NoTwistedHere",
     Theme = "Dark",
