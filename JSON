@@ -1,0 +1,136 @@
+-- Defaultio (https://www.roblox.com/library/1005802894/)
+
+--[[
+	
+	This module adds support for encoding userdata values to JSON strings.
+	It also supports lists which skip indices, such as {[1] = "a", [2] = "b", [4] = "c"}
+	
+	Userdata support implemented by replacing userdata types with a new table, with keys _T and _V:
+		_T = userdata type enum (index in the supportedUserdataTypes list)
+		_V = a value or table representing the value
+	
+	Follow the examples bellow to add suppport for additional userdata types.
+	
+--]]
+
+local jsonPlusUserdata = {}
+local httpService = game:GetService("HttpService")
+local json = loadstring(game:HttpGet("https://raw.githubusercontent.com/NoTwistedHere/Storage/main/Other/JSON", true))()
+local table = loadstring(game:HttpGet("https://raw.githubusercontent.com/NoTwistedHere/Storage/main/Other/Table", true))()
+local math = loadstring(game:HttpGet("https://raw.githubusercontent.com/NoTwistedHere/Storage/main/Other/Math", true))()
+
+
+local supportedUserdataTypes = {
+	{UserDataType = "EnumItem",
+	Encode = function(v) return {tostring(v.EnumType), v.Value} end,
+	Decode = function(v) for _, enumItem in pairs(Enum[v[1]]:GetEnumItems()) do if enumItem.Value == v[2] then return enumItem end end end},
+
+	{UserDataType = "Vector3",
+	Encode = function(v) return roundFloats(3, v.X, v.Y, v.Z) end,
+	Decode = function(v) return Vector3.new(unpack(v)) end},
+	
+	{UserDataType = "CFrame",
+	Encode = function(v) return table.combineLists(roundFloats(3, v.p.X, v.p.Y, v.p.Z), roundFloats(4, v:ToOrientation())) end,
+	Decode = function(v) 
+		if v[7] then
+			return CFrame.new(unpack(v)) --backwards compatability, can remove this some timethanks
+		else
+			return CFrame.new(Vector3.new(v[1], v[2], v[3])) * CFrame.fromOrientation(v[4], v[5], v[6]) 
+		end
+	end},
+	
+	{UserDataType = "Color3",
+	Encode = function(v) return {math.round(v.r * 255), math.round(v.g * 255), math.round(v.b * 255)} end,
+	Decode = function(v) return Color3.fromRGB(unpack(v)) end},
+	
+	{UserDataType = "BrickColor",
+	Encode = function(v) return v.Number end,
+	Decode = function(v) return BrickColor.new(v) end},
+	
+	{UserDataType = "Vector2",
+	Encode = function(v) return roundFloats(3, v.X, v.Y) end,
+	Decode = function(v) return Vector2.new(unpack(v)) end},
+}
+
+local userDataTypes = {}
+for userdataEnum, userdataType in pairs(supportedUserdataTypes) do
+	userdataType.Enum = userdataEnum
+	userDataTypes[userdataType.UserDataType] = userdataType
+end
+
+function roundFloats(decimals, ...)
+	local values = {...}
+	for i, v in pairs(values) do
+		values[i] = math.round(v, decimals)
+	end
+	return values
+end
+
+function jsonPlusUserdata:Encode(stateTable)
+	assert(stateTable, "No state table provided to encode")
+	stateTable = table.deepCopy(stateTable)
+	
+	local function traverseTable(tab)
+		for key, value in pairs(tab) do
+			local valueType = typeof(value)
+			if valueType == "table" then
+				traverseTable(value)
+			else
+				local userdataType = userDataTypes[valueType]
+				if userdataType then
+					tab[key] = {_T = userdataType.Enum, _V = userdataType.Encode(value)}
+				elseif type(value) == "userdata" then
+					warn("Attempt to JSON encode unknown userdata type: ", key, ": ", value) 
+					table.printTable(stateTable)
+				end
+				--[[for userdataEnum, userdataType in pairs(supportedUserdataTypes) do
+					if userdataType.UserDataType == valueType then
+						tab[key] = {_T = userdataEnum, _V = userdataType.Encode(value)}
+						break
+					end
+				end]]
+			end
+		end
+	end		
+	
+	
+	traverseTable(stateTable)	
+	if table.doesMixedTableHaveListWithMissingKeys(stateTable) then
+		stateTable = table.makeKeysStrings(stateTable)
+	end
+	--return httpService:JSONEncode(stateTable)
+	return json.encode(stateTable)
+end
+
+
+function jsonPlusUserdata:Decode(stateString)
+	assert(stateString, "No state string provided to encode")
+	
+	--local stateTable = httpService:JSONDecode(stateString)
+	local stateTable = json.decode(stateString)
+	stateTable = table.makeKeysNumbers(stateTable)
+	
+	local function traverseTable(tab)
+		for key, value in pairs(tab) do
+			if typeof(value) == "table" then
+				if value._T and value._V then
+					tab[key] = supportedUserdataTypes[value._T].Decode(value._V)
+				else
+					traverseTable(value)
+				end
+			end
+		end
+	end		
+	
+	traverseTable(stateTable)
+	return stateTable
+end
+
+
+--local t = {CFrame.new(), Vector3.new(), BrickColor.Red(), Enum.Material.Concrete}
+--local t = {[1] = "a", [3] = "b", [2] = "c"} 
+--local t = {["hello"] = {[1] = "a", [3] = "b", [2] = "c"}}
+--table.printTable(t)
+--table.printTable(jsonPlusUserdata:Decode( jsonPlusUserdata:Encode(t)))
+
+return jsonPlusUserdata
